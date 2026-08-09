@@ -12,6 +12,7 @@ import studentRoutes from './routes/student.routes.js';
 import scanRoutes from './routes/scan.routes.js';
 import publicRoutes from './routes/public.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
+import { ensureSuperAdmin } from './utils/bootstrap.js';
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -34,5 +35,7 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 5001;
 connectDb().then(() => {
+  return ensureSuperAdmin();
+}).then(() => {
   app.listen(port, () => console.log(`API running on http://localhost:${port}`));
 });
