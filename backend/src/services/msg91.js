@@ -13,9 +13,15 @@ export async function sendOtp(mobile, otp) {
   }
 
   const otpVariable = process.env.MSG91_OTP_VARIABLE || 'OTP';
+  const validityVariable = process.env.MSG91_VALIDITY_VARIABLE || 'Validity';
+  const validity = process.env.MSG91_OTP_EXPIRY_MINUTES || '5';
   const response = await axios.post(
     'https://control.msg91.com/api/v5/otp',
-    { [otpVariable]: otp, otp },
+    {
+      [otpVariable]: otp,
+      [validityVariable]: validity,
+      otp
+    },
     {
       params: {
         template_id: process.env.MSG91_TEMPLATE_ID,
