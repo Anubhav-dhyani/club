@@ -298,7 +298,7 @@ function Students() {
       <section className="table-wrap">
         <h2>Students</h2>
         <table>
-          <thead><tr>{['name', 'mobile', 'event', 'course', 'sem', 'status', 'qr', 'edit'].map((c) => <th key={c}>{c}</th>)}</tr></thead>
+          <thead><tr>{['name', 'mobile', 'event', 'course', 'sem', 'generated qr', 'uploaded qr', 'edit'].map((c) => <th key={c}>{c}</th>)}</tr></thead>
           <tbody>
             {rows.map((s) => (
               <tr key={s._id}>
@@ -307,8 +307,8 @@ function Students() {
                 <td>{s.event?.name}</td>
                 <td>{s.course || '-'}</td>
                 <td>{s.semester || '-'}</td>
-                <td>{s.status}</td>
-                <td>{s.qrImageUrl ? 'ready' : 'missing'}</td>
+                <td>{s.localQrImageUrl ? 'generated' : 'not generated'}</td>
+                <td>{s.qrImageUrl ? 'uploaded' : 'not uploaded'}</td>
                 <td><button className="icon-btn" onClick={() => setEditing(s)}>Edit</button></td>
               </tr>
             ))}
@@ -324,7 +324,7 @@ function QrData() {
   const [event, setEvent] = useState('');
   const [rows, setRows] = useState([]);
   const [showImport, setShowImport] = useState(false);
-  const load = () => api(`/admin/students${event ? `?event=${event}` : ''}`).then((data) => setRows(data.filter((row) => row.qrImageUrl)));
+  const load = () => api(`/admin/students${event ? `?event=${event}` : ''}`).then((data) => setRows(data.filter((row) => row.localQrImageUrl || row.qrImageUrl || row.qrUrl)));
   useEffect(() => { load(); }, [event]);
   return (
     <div className="stack">
@@ -348,8 +348,17 @@ function QrData() {
       />
       <Table
         title="Student QR Data"
-        rows={rows.map((s) => ({ name: s.name, mobile: s.mobile, event: s.event?.name, token: s.token, qr: s.qrImageUrl || '-', status: s.status }))}
-        cols={['name', 'mobile', 'event', 'token', 'qr', 'status']}
+        rows={rows.map((s) => ({
+          name: s.name,
+          mobile: s.mobile,
+          event: s.event?.name,
+          token: s.token,
+          page: s.qrUrl ? 'ready' : '-',
+          generated: s.localQrImageUrl ? 'ready' : '-',
+          uploaded: s.qrImageUrl ? 'ready' : '-',
+          status: s.status
+        }))}
+        cols={['name', 'mobile', 'event', 'token', 'page', 'generated', 'uploaded', 'status']}
       />
     </div>
   );

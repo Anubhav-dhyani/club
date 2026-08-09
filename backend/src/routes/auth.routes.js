@@ -13,7 +13,11 @@ router.post('/student/request-otp', async (req, res, next) => {
   try {
     const mobile = String(req.body.mobile || '').trim();
     if (!mobile) return res.status(400).json({ message: 'Mobile number is required' });
-    const activeCount = await StudentQr.countDocuments({ mobile, status: { $in: ['pending', 'generated', 'downloaded'] } });
+    const activeCount = await StudentQr.countDocuments({
+      mobile,
+      qrImageUrl: { $nin: ['', null] },
+      status: { $in: ['generated', 'downloaded'] }
+    });
     if (!activeCount) return res.status(403).json({ message: 'Your pass has already been used or is not available.' });
 
     const otp = makeOtp();

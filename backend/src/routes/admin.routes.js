@@ -160,7 +160,7 @@ router.patch('/students/:id', requireRole('super_admin', 'admin'), async (req, r
   try {
     const existing = await StudentQr.findById(req.params.id);
     adminEventFilter(req.user, existing.event);
-    const protectedFields = ['token', 'status', 'qrUrl', 'qrImageUrl', 'qrImagePath', 'usedAt', 'usedBy'];
+    const protectedFields = ['token', 'status', 'qrUrl', 'qrImageUrl', 'qrImagePath', 'localQrImageUrl', 'localQrImagePath', 'usedAt', 'usedBy'];
     protectedFields.forEach((field) => delete req.body[field]);
     res.json(await StudentQr.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('event', 'name slug'));
   } catch (error) {
@@ -302,8 +302,8 @@ router.post('/students/generate/:eventId', requireRole('super_admin', 'admin'), 
     for (const student of students) {
       const links = await createQrPass(student, event);
       student.qrUrl = links.qrUrl;
-      student.qrImageUrl = links.qrImageUrl;
-      student.qrImagePath = links.qrImagePath;
+      student.localQrImageUrl = links.qrImageUrl;
+      student.localQrImagePath = links.qrImagePath;
       student.status = 'generated';
       student.generatedAt = new Date();
       await student.save();
@@ -329,6 +329,7 @@ router.get('/students/export', async (req, res, next) => {
       Token: s.token,
       'QR page link': s.qrUrl,
       'QR link': s.qrImageUrl,
+      'Generated local QR': s.localQrImageUrl,
       'QR status': s.status
     }));
     const buffer = await workbookBuffer(rows);
@@ -344,7 +345,7 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
   try {
     adminEventFilter(req.user, req.params.eventId);
     const event = await Event.findById(req.params.eventId);
-    const students = await StudentQr.find({ event: event._id, qrImageUrl: { $ne: '' } });
+    const students = await StudentQr.find({ event: event._id, localQrImagePath: { $ne: '' } });
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename=${event.slug}-qr-links.zip`);
     const archive = archiver('zip');
@@ -359,16 +360,17 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
       Token: s.token,
       'QR page link': s.qrUrl,
       'QR link': s.qrImageUrl,
+      'Generated local QR': s.localQrImageUrl,
       'QR status': s.status
     }));
     archive.append(await workbookBuffer(rows), { name: `${event.slug}-student-qr-data.xlsx` });
     archive.append(
-      students.map((s) => `${s.name},${s.mobile},${s.token},${s.qrUrl},${s.qrImageUrl}`).join('\n'),
+      students.map((s) => `${s.name},${s.mobile},${s.token},${s.qrUrl},${s.qrImageUrl || ''},${s.localQrImageUrl || ''}`).join('\n'),
       { name: `${event.slug}-qr-links.csv` }
     );
     for (const student of students) {
-      if (student.qrImagePath) {
-        archive.file(student.qrImagePath, { name: `qr-passes/${student.token}.png` });
+      if (student.localQrImagePath) {
+        archive.file(student.localQrImagePath, { name: `qr-passes/${student.token}.png` });
       }
     }
     await archive.finalize();

@@ -13,6 +13,8 @@ const studentQrSchema = new mongoose.Schema(
     qrUrl: { type: String },
     qrImageUrl: { type: String },
     qrImagePath: { type: String },
+    localQrImageUrl: { type: String },
+    localQrImagePath: { type: String },
     status: {
       type: String,
       enum: ['pending', 'generated', 'downloaded', 'used', 'inactive'],
