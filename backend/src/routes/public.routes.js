@@ -8,12 +8,13 @@ router.get('/pass/:eventSlug/:token', async (req, res, next) => {
     const pass = await StudentQr.findOne({ token: req.params.token }).populate('event', 'name slug isActive');
     if (!pass || pass.event.slug !== req.params.eventSlug) return res.status(404).json({ message: 'Pass not found' });
     if (pass.status === 'used') return res.status(410).json({ message: 'This pass has already been used' });
-    if (!pass.qrImageUrl) return res.status(404).json({ message: 'Final QR link has not been uploaded yet' });
+    const qrImageUrl = pass.qrImageUrl || pass.localQrImageUrl;
+    if (!qrImageUrl) return res.status(404).json({ message: 'QR pass has not been generated yet' });
     res.json({
       id: pass._id,
       name: pass.name,
       event: pass.event,
-      qrImageUrl: pass.qrImageUrl,
+      qrImageUrl,
       status: pass.status
     });
   } catch (error) {

@@ -21,6 +21,19 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function placementForTemplate(event, templateWidth, templateHeight) {
+  const placement = event.qrPlacement || {};
+  const isGraphicEraPortrait = templateWidth === 1024 && templateHeight === 1536;
+  const isOldDefault = placement.x === 760 && placement.y === 500 && placement.size === 260;
+  const isPreviousGraphicEraDefault = placement.x === 277 && placement.y === 574 && placement.size === 470;
+
+  if (isGraphicEraPortrait && (!placement.size || isOldDefault || isPreviousGraphicEraDefault)) {
+    return { x: 297, y: 594, size: 430 };
+  }
+
+  return placement;
+}
+
 function eventTextSvg(event, placement, width, height) {
   const text = event.name.replace(/[<&>"]/g, '');
   const fontSize = clamp(placement.fontSize, 12, Math.max(12, height - 10));
@@ -42,29 +55,44 @@ export async function createQrPass(studentQr, event) {
   const templateWidth = metadata.width || 1200;
   const templateHeight = metadata.height || 800;
 
-  const qrSize = clamp(event.qrPlacement.size, 80, Math.min(templateWidth, templateHeight));
-  const qrLeft = clamp(event.qrPlacement.x, 0, Math.max(0, templateWidth - qrSize));
-  const qrTop = clamp(event.qrPlacement.y, 0, Math.max(0, templateHeight - qrSize));
-  const qrPng = await QRCode.toBuffer(qrPageUrl, { margin: 1, width: qrSize });
+  const qrPlacement = placementForTemplate(event, templateWidth, templateHeight);
+  const qrSize = clamp(qrPlacement.size, 80, Math.min(templateWidth, templateHeight));
+  const qrLeft = clamp(qrPlacement.x, 0, Math.max(0, templateWidth - qrSize));
+  const qrTop = clamp(qrPlacement.y, 0, Math.max(0, templateHeight - qrSize));
+  const qrPng = await QRCode.toBuffer(qrPageUrl, { errorCorrectionLevel: 'H', margin: 2, width: qrSize });
 
   const textLeft = clamp(event.eventNamePlacement.x, 0, Math.max(0, templateWidth - 1));
   const textTop = clamp(event.eventNamePlacement.y, 0, Math.max(0, templateHeight - 1));
   const textWidth = Math.max(1, templateWidth - textLeft);
   const textHeight = Math.min(260, Math.max(1, templateHeight - textTop));
 
-  const image = await sharp(template)
-    .composite([
-      {
-        input: eventTextSvg(event, event.eventNamePlacement, textWidth, textHeight),
-        left: textLeft,
-        top: textTop
-      },
-      {
-        input: qrPng,
-        left: qrLeft,
-        top: qrTop
+  const overlays = [];
+  if (event.eventNamePlacement?.enabled) {
+    overlays.push({
+      input: eventTextSvg(event, event.eventNamePlacement, textWidth, textHeight),
+      left: textLeft,
+      top: textTop
+    });
+  }
+  if (templateWidth === 1024 && templateHeight === 1536) {
+    const qrBackground = await sharp({
+      create: {
+        width: 470,
+        height: 470,
+        channels: 4,
+        background: '#ffffff'
       }
-    ])
+    }).png().toBuffer();
+    overlays.push({
+      input: qrBackground,
+      left: 277,
+      top: 574
+    });
+  }
+  overlays.push({ input: qrPng, left: qrLeft, top: qrTop });
+
+  const image = await sharp(template)
+    .composite(overlays)
     .png()
     .toBuffer();
 

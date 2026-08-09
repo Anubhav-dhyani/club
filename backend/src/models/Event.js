@@ -7,11 +7,12 @@ const eventSchema = new mongoose.Schema(
     templateFile: { type: String, required: true },
     isActive: { type: Boolean, default: true },
     qrPlacement: {
-      x: { type: Number, default: 760 },
-      y: { type: Number, default: 500 },
-      size: { type: Number, default: 260 }
+      x: { type: Number, default: 297 },
+      y: { type: Number, default: 594 },
+      size: { type: Number, default: 430 }
     },
     eventNamePlacement: {
+      enabled: { type: Boolean, default: false },
       x: { type: Number, default: 80 },
       y: { type: Number, default: 80 },
       fontSize: { type: Number, default: 54 },

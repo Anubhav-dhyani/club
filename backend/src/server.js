@@ -38,4 +38,7 @@ connectDb().then(() => {
   return ensureSuperAdmin();
 }).then(() => {
   app.listen(port, () => console.log(`API running on http://localhost:${port}`));
+}).catch((error) => {
+  console.error('Failed to start API server:', error.message);
+  process.exit(1);
 });

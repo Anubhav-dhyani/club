@@ -168,6 +168,51 @@ router.patch('/students/:id', requireRole('super_admin', 'admin'), async (req, r
   }
 });
 
+router.get('/students/:id/qr', async (req, res, next) => {
+  try {
+    const student = await StudentQr.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    adminEventFilter(req.user, student.event);
+    const localPath = student.qrImagePath || student.localQrImagePath;
+    if (localPath) {
+      try {
+        await fs.access(localPath);
+        return res.download(path.resolve(localPath), `${student.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr.png`);
+      } catch {
+        // Regenerate below when an older deployment's local file is unavailable.
+      }
+    }
+    const event = await Event.findById(student.event);
+    if (!event || !event.isActive) return res.status(404).json({ message: 'Active event not found' });
+    const links = await createQrPass(student, event);
+    student.qrUrl = links.qrUrl;
+    student.localQrImageUrl = links.qrImageUrl;
+    student.localQrImagePath = links.qrImagePath;
+    student.qrImageUrl = links.qrImageUrl;
+    student.qrImagePath = links.qrImagePath;
+    if (student.status === 'pending') student.status = 'generated';
+    student.generatedAt = new Date();
+    await student.save();
+    res.download(path.resolve(links.qrImagePath), `${student.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr.png`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/students/:id', requireRole('super_admin', 'admin'), async (req, res, next) => {
+  try {
+    const student = await StudentQr.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    adminEventFilter(req.user, student.event);
+    const paths = [...new Set([student.qrImagePath, student.localQrImagePath].filter(Boolean))];
+    await StudentQr.deleteOne({ _id: student._id });
+    await Promise.all(paths.map((filePath) => fs.unlink(filePath).catch(() => {})));
+    res.json({ message: 'Student deleted' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/students/import', requireRole('super_admin', 'admin'), upload.single('file'), async (req, res, next) => {
   try {
     const eventId = req.body.event;
@@ -297,17 +342,24 @@ router.post('/students/generate/:eventId', requireRole('super_admin', 'admin'), 
   try {
     adminEventFilter(req.user, req.params.eventId);
     const event = await Event.findById(req.params.eventId);
-    const students = await StudentQr.find({ event: event._id, status: 'pending' });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    const statusFilter = req.body.regenerate ? { $in: ['pending', 'generated', 'downloaded'] } : 'pending';
+    const students = await StudentQr.find({ event: event._id, status: statusFilter });
     let generated = 0;
-    for (const student of students) {
-      const links = await createQrPass(student, event);
-      student.qrUrl = links.qrUrl;
-      student.localQrImageUrl = links.qrImageUrl;
-      student.localQrImagePath = links.qrImagePath;
-      student.status = 'generated';
-      student.generatedAt = new Date();
-      await student.save();
-      generated += 1;
+    for (let index = 0; index < students.length; index += 3) {
+      const batch = students.slice(index, index + 3);
+      await Promise.all(batch.map(async (student) => {
+        const links = await createQrPass(student, event);
+        student.qrUrl = links.qrUrl;
+        student.localQrImageUrl = links.qrImageUrl;
+        student.localQrImagePath = links.qrImagePath;
+        student.qrImageUrl = links.qrImageUrl;
+        student.qrImagePath = links.qrImagePath;
+        if (student.status === 'pending') student.status = 'generated';
+        student.generatedAt = new Date();
+        await student.save();
+        generated += 1;
+      }));
     }
     res.json({ generated });
   } catch (error) {

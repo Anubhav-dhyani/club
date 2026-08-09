@@ -22,13 +22,19 @@ router.get('/passes', requireStudent, async (req, res, next) => {
   try {
     const passes = await StudentQr.find({
       mobile: req.mobile,
-      qrImageUrl: { $nin: ['', null] },
+      $or: [
+        { qrImageUrl: { $nin: ['', null] } },
+        { localQrImageUrl: { $nin: ['', null] } }
+      ],
       status: { $in: ['generated', 'downloaded'] }
     }).populate('event', 'name slug isActive');
 
     const active = passes.filter((pass) => pass.event?.isActive && pass.status !== 'used');
     if (!active.length) return res.status(403).json({ message: 'Your QR pass is not available yet or has already been used.' });
-    res.json(active);
+    res.json(active.map((pass) => ({
+      ...pass.toObject(),
+      qrImageUrl: pass.qrImageUrl || pass.localQrImageUrl
+    })));
   } catch (error) {
     next(error);
   }
@@ -37,7 +43,9 @@ router.get('/passes', requireStudent, async (req, res, next) => {
 router.post('/passes/:id/downloaded', requireStudent, async (req, res, next) => {
   try {
     const pass = await StudentQr.findOne({ _id: req.params.id, mobile: req.mobile });
-    if (!pass || pass.status === 'used' || !pass.qrImageUrl) return res.status(404).json({ message: 'Active pass not found' });
+    if (!pass || pass.status === 'used' || !(pass.qrImageUrl || pass.localQrImageUrl)) {
+      return res.status(404).json({ message: 'Active pass not found' });
+    }
     if (pass.status === 'generated') pass.status = 'downloaded';
     pass.downloadedAt = new Date();
     await pass.save();

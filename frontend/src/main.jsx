@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Camera, Download, FileSpreadsheet, LayoutDashboard, Lock, LogOut, Plus, QrCode, Settings, Upload, Users, X } from 'lucide-react';
+import { Camera, Check, Download, FileSpreadsheet, LayoutDashboard, LoaderCircle, Lock, LogOut, MoreVertical, Pencil, Plus, Power, QrCode, Search, Settings, Trash2, Upload, Users, X } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import './styles.css';
 
@@ -16,9 +16,21 @@ function api(path, options = {}) {
   });
 }
 
-function downloadFile(path, name = 'download') {
+async function downloadFile(path, name = 'download') {
   const token = localStorage.getItem('adminToken');
-  window.open(`${API}${path}${path.includes('?') ? '&' : '?'}token=${token}`, name);
+  if (!token) throw new Error('Please sign in again to download files');
+  const separator = path.includes('?') ? '&' : '?';
+  const frame = document.createElement('iframe');
+  frame.title = name;
+  frame.hidden = true;
+  frame.src = `${API}${path}${separator}token=${encodeURIComponent(token)}`;
+  document.body.appendChild(frame);
+  setTimeout(() => frame.remove(), 120000);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+}
+
+function Busy({ label }) {
+  return <><LoaderCircle className="spin" size={16} /> {label}</>;
 }
 
 function App() {
@@ -100,7 +112,7 @@ function StudentApp() {
           <div className="pass-grid">
             {passes.map((pass) => (
               <article className="pass-card" key={pass._id}>
-                <img src={pass.qrImageUrl || '/img/default-template.svg'} alt={pass.event.name} />
+                <img src={pass.qrImageUrl} alt={pass.event.name} />
                 <div>
                   <strong>{pass.event.name}</strong>
                   <span>{pass.status}</span>
@@ -228,40 +240,129 @@ function Dashboard() {
 function Students() {
   const { events } = useEvents();
   const [event, setEvent] = useState('');
+  const [search, setSearch] = useState('');
   const [rows, setRows] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [activeMenu, setActiveMenu] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState('');
   const [form, setForm] = useState({ name: '', email: '', mobile: '', course: '', semester: '' });
-  const load = () => api(`/admin/students${event ? `?event=${event}` : ''}`).then(setRows);
-  useEffect(() => { load(); }, [event]);
+  const load = () => {
+    const params = new URLSearchParams();
+    if (event) params.set('event', event);
+    if (search.trim()) params.set('q', search.trim());
+    return api(`/admin/students${params.size ? `?${params}` : ''}`).then(setRows).catch((error) => setMessage(error.message));
+  };
+  useEffect(() => {
+    const timeout = setTimeout(load, 250);
+    return () => clearTimeout(timeout);
+  }, [event, search]);
+  useEffect(() => {
+    const closeMenu = () => setActiveMenu('');
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setActiveMenu('');
+    };
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
   async function addStudent(e) {
     e.preventDefault();
-    await api('/admin/students', { method: 'POST', body: JSON.stringify({ ...form, event }) });
-    setForm({ name: '', email: '', mobile: '', course: '', semester: '' });
-    setShowAdd(false);
-    load();
+    setBusy('add');
+    setMessage('');
+    try {
+      await api('/admin/students', { method: 'POST', body: JSON.stringify({ ...form, event }) });
+      setForm({ name: '', email: '', mobile: '', course: '', semester: '' });
+      setShowAdd(false);
+      setMessage('Student added successfully.');
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
   async function generate() {
-    await api(`/admin/students/generate/${event}`, { method: 'POST', body: '{}' });
-    load();
+    setBusy('generate');
+    setMessage('Updating QR passes with the selected template...');
+    try {
+      const result = await api(`/admin/students/generate/${event}`, { method: 'POST', body: JSON.stringify({ regenerate: true }) });
+      setMessage(`Updated ${result.generated} QR pass${result.generated === 1 ? '' : 'es'} with the latest template.`);
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
   async function saveEdit(e) {
     e.preventDefault();
-    await api(`/admin/students/${editing._id}`, { method: 'PATCH', body: JSON.stringify(editing) });
-    setEditing(null);
-    load();
+    setBusy(`edit-${editing._id}`);
+    try {
+      await api(`/admin/students/${editing._id}`, { method: 'PATCH', body: JSON.stringify(editing) });
+      setMessage('Student details updated.');
+      setEditing(null);
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function deleteStudent() {
+    setBusy(`delete-${deleting._id}`);
+    try {
+      await api(`/admin/students/${deleting._id}`, { method: 'DELETE' });
+      setMessage(`${deleting.name} was deleted.`);
+      setDeleting(null);
+      load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function runDownload(path, name, key) {
+    setBusy(key);
+    setMessage('Preparing download...');
+    try {
+      await downloadFile(path, name);
+      setMessage(key === 'zip' ? 'QR ZIP download started. The 84 MB file may take a moment to finish.' : 'Download started.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function downloadQr(student) {
+    setActiveMenu('');
+    await runDownload(`/admin/students/${student._id}/qr`, `${student.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-qr.png`, `qr-${student._id}`);
   }
   return (
     <div className="stack">
-      <div className="toolbar">
-        <Filter events={events} value={event} setValue={setEvent} />
-        <button onClick={() => setShowAdd(true)}><Plus size={16} /> Add Student</button>
-        <button onClick={() => setShowBulk(true)}><Upload size={16} /> Bulk Upload</button>
-        <button onClick={generate} disabled={!event}><QrCode size={16} /> Generate QR</button>
-        <button onClick={() => downloadFile(`/admin/students/export${event ? `?event=${event}` : ''}`, 'export')}><Download size={16} /> Export Excel</button>
-        <button onClick={() => downloadFile(`/admin/students/zip/${event}`, 'zip')} disabled={!event}><Download size={16} /> Bulk QR ZIP</button>
+      <div className="student-controls">
+        <div className="student-filters">
+          <label className="search-field">
+            <Search size={18} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, mobile or email" aria-label="Search students" />
+          </label>
+          <Filter events={events} value={event} setValue={setEvent} />
+        </div>
+        <div className="toolbar student-actions">
+          <button onClick={() => setShowAdd(true)} disabled={!!busy}><Plus size={16} /> Add Student</button>
+          <button className="secondary" onClick={() => setShowBulk(true)} disabled={!!busy}><Upload size={16} /> Bulk Upload</button>
+          <button className="secondary" onClick={generate} disabled={!event || !!busy}>{busy === 'generate' ? <Busy label="Updating QR..." /> : <><QrCode size={16} /> Generate QR</>}</button>
+          <button className="secondary" disabled={!!busy} onClick={() => runDownload(`/admin/students/export${event ? `?event=${event}` : ''}`, 'student-qr-data.xlsx', 'export')}>{busy === 'export' ? <Busy label="Exporting..." /> : <><Download size={16} /> Export</>}</button>
+          <button className="secondary" onClick={() => runDownload(`/admin/students/zip/${event}`, `${events.find((item) => item._id === event)?.slug || 'event'}-qr.zip`, 'zip')} disabled={!event || !!busy}>{busy === 'zip' ? <Busy label="Preparing ZIP..." /> : <><Download size={16} /> QR ZIP</>}</button>
+        </div>
       </div>
+      {message && <div className="notice">{message}</div>}
       <Modal open={showAdd} title="Add Student" onClose={() => setShowAdd(false)}>
         <form className="modal-form" onSubmit={addStudent}>
           <select value={event} onChange={(e) => setEvent(e.target.value)} required>
@@ -271,7 +372,7 @@ function Students() {
           {['name', 'email', 'mobile', 'course', 'semester'].map((field) => (
             <input key={field} value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} placeholder={field} required={['name', 'mobile'].includes(field)} />
           ))}
-          <button><Plus size={16} /> Add Student</button>
+          <button disabled={busy === 'add'}>{busy === 'add' ? <Busy label="Adding..." /> : <><Plus size={16} /> Add Student</>}</button>
         </form>
       </Modal>
       <BulkUploadModal
@@ -286,32 +387,67 @@ function Students() {
         onClose={() => setShowBulk(false)}
         onDone={load}
       />
-      {editing && (
-        <form className="inline-form edit-form" onSubmit={saveEdit}>
-          {['name', 'email', 'mobile', 'course', 'semester'].map((field) => (
-            <input key={field} value={editing[field] || ''} onChange={(e) => setEditing({ ...editing, [field]: e.target.value })} placeholder={field} />
-          ))}
-          <button>Save</button>
-          <button type="button" className="secondary" onClick={() => setEditing(null)}>Cancel</button>
-        </form>
-      )}
+      <Modal open={!!deleting} title="Delete student" onClose={() => setDeleting(null)}>
+        {deleting && (
+          <div className="confirm-dialog">
+            <p>Delete <strong>{deleting.name}</strong> and their QR pass? This action cannot be undone.</p>
+            <div className="modal-actions confirm-actions">
+              <button type="button" className="secondary" onClick={() => setDeleting(null)}>Cancel</button>
+              <button type="button" className="danger-btn" disabled={busy === `delete-${deleting._id}`} onClick={deleteStudent}>{busy === `delete-${deleting._id}` ? <Busy label="Deleting..." /> : <><Trash2 size={16} /> Delete Student</>}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+      <Modal open={!!editing} title="Edit student" onClose={() => setEditing(null)}>
+        {editing && (
+          <form className="modal-form student-edit-form" onSubmit={saveEdit}>
+            {[
+              ['name', 'Full name'],
+              ['email', 'Email address'],
+              ['mobile', 'Mobile number'],
+              ['course', 'Course'],
+              ['semester', 'Semester']
+            ].map(([field, label]) => (
+              <label className="form-field" key={field}>
+                <span>{label}</span>
+                <input value={editing[field] || ''} onChange={(e) => setEditing({ ...editing, [field]: e.target.value })} required={['name', 'mobile'].includes(field)} />
+              </label>
+            ))}
+            <div className="modal-actions confirm-actions">
+              <button type="button" className="secondary" onClick={() => setEditing(null)}>Cancel</button>
+              <button disabled={busy === `edit-${editing._id}`}>{busy === `edit-${editing._id}` ? <Busy label="Saving..." /> : 'Save Changes'}</button>
+            </div>
+          </form>
+        )}
+      </Modal>
       <section className="table-wrap">
-        <h2>Students</h2>
-        <table>
-          <thead><tr>{['name', 'mobile', 'event', 'course', 'sem', 'generated qr', 'uploaded qr', 'edit'].map((c) => <th key={c}>{c}</th>)}</tr></thead>
+        <div className="table-heading"><div><h2>Students</h2><span>{rows.length} record{rows.length === 1 ? '' : 's'}</span></div></div>
+        <table className="student-table">
+          <thead><tr>{['Student', 'Mobile', 'Event', 'Course', 'Semester', 'QR status'].map((c) => <th key={c}>{c}</th>)}<th className="actions-column">Actions</th></tr></thead>
           <tbody>
-            {rows.map((s) => (
+            {rows.map((s, index) => (
               <tr key={s._id}>
-                <td>{s.name}</td>
+                <td><div className="student-identity"><strong>{s.name}</strong><span>{s.email || 'No email'}</span></div></td>
                 <td>{s.mobile}</td>
                 <td>{s.event?.name}</td>
                 <td>{s.course || '-'}</td>
                 <td>{s.semester || '-'}</td>
-                <td>{s.localQrImageUrl ? 'generated' : 'not generated'}</td>
-                <td>{s.qrImageUrl ? 'uploaded' : 'not uploaded'}</td>
-                <td><button className="icon-btn" onClick={() => setEditing(s)}>Edit</button></td>
+                <td><span className={`status-pill ${s.qrImageUrl || s.localQrImageUrl ? 'ready' : 'pending'}`}>{s.qrImageUrl || s.localQrImageUrl ? 'Ready' : 'Pending'}</span></td>
+                <td className="actions-column">
+                  <div className="row-actions" onMouseDown={(e) => e.stopPropagation()}>
+                    <button className="menu-trigger" aria-label={`Actions for ${s.name}`} aria-haspopup="menu" aria-expanded={activeMenu === s._id} title="Student actions" onClick={() => setActiveMenu(activeMenu === s._id ? '' : s._id)}><MoreVertical size={19} /></button>
+                    {activeMenu === s._id && (
+                      <div className={`action-menu ${index >= rows.length - 2 ? 'open-up' : ''}`} role="menu" aria-label={`Actions for ${s.name}`}>
+                        <button role="menuitem" disabled={!(s.qrImageUrl || s.localQrImageUrl) || !!busy} onClick={() => downloadQr(s)}>{busy === `qr-${s._id}` ? <Busy label="Downloading..." /> : <><Download size={16} /> Download QR</>}</button>
+                        <button role="menuitem" onClick={() => { setEditing(s); setActiveMenu(''); }}><Pencil size={16} /> Edit Student</button>
+                        <button role="menuitem" className="danger-action" onClick={() => { setDeleting(s); setActiveMenu(''); }}><Trash2 size={16} /> Delete Student</button>
+                      </div>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
+            {!rows.length && <tr><td className="empty-state" colSpan="7">No students match the current filters.</td></tr>}
           </tbody>
         </table>
       </section>
@@ -382,30 +518,57 @@ function BulkUploadModal({ open, title, events, event, setEvent, previewPath, up
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState('');
   useEffect(() => {
     if (!open) {
       setFile(null);
       setPreview(null);
       setMessage('');
+      setBusy('');
     }
   }, [open]);
   async function chooseFile(nextFile) {
     setFile(nextFile);
     setMessage('');
     if (!nextFile) return;
-    const body = new FormData();
-    body.append('file', nextFile);
-    const data = await api(previewPath, { method: 'POST', body });
-    setPreview(data);
+    setBusy('preview');
+    try {
+      const body = new FormData();
+      body.append('file', nextFile);
+      const data = await api(previewPath, { method: 'POST', body });
+      setPreview(data);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
   async function uploadSelected() {
     if (!file || !event) return;
-    const body = new FormData();
-    body.append('event', event);
-    body.append('file', file);
-    const result = await api(uploadPath, { method: 'POST', body });
-    setMessage(`Uploaded ${result.imported || 0} rows.`);
-    onDone?.();
+    setBusy('upload');
+    try {
+      const body = new FormData();
+      body.append('event', event);
+      body.append('file', file);
+      const result = await api(uploadPath, { method: 'POST', body });
+      setMessage(`Uploaded ${result.imported || 0} rows.`);
+      await onDone?.();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function downloadTemplate() {
+    setBusy('template');
+    try {
+      await downloadFile(templatePath, 'student-import-template.xlsx');
+      setMessage('Template download started.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
   const cols = Object.keys(preview?.rows?.[0] || {});
   return (
@@ -416,9 +579,9 @@ function BulkUploadModal({ open, title, events, event, setEvent, previewPath, up
           {events.map((item) => <option value={item._id} key={item._id}>{item.name}</option>)}
         </select>
         <div className="modal-actions">
-          <button type="button" className="secondary" onClick={() => downloadFile(templatePath, 'template')}><Download size={16} /> Template</button>
-          <label className="file-picker"><Upload size={16} /> Choose Excel <input type="file" accept=".xlsx,.xls" onChange={(e) => chooseFile(e.target.files[0])} /></label>
-          <button type="button" disabled={!event || !file} onClick={uploadSelected}><Upload size={16} /> Upload</button>
+          <button type="button" className="secondary" disabled={!!busy} onClick={downloadTemplate}>{busy === 'template' ? <Busy label="Downloading..." /> : <><Download size={16} /> Template</>}</button>
+          <label className={`file-picker ${busy ? 'disabled' : ''}`}>{busy === 'preview' ? <Busy label="Reading file..." /> : <><Upload size={16} /> Choose Excel</>} <input type="file" accept=".xlsx,.xls" disabled={!!busy} onChange={(e) => chooseFile(e.target.files[0])} /></label>
+          <button type="button" disabled={!event || !file || !!busy} onClick={uploadSelected}>{busy === 'upload' ? <Busy label="Uploading..." /> : <><Upload size={16} /> Upload</>}</button>
         </div>
         {file && <div className="notice">Selected {file.name}</div>}
         {message && <div className="notice">{message}</div>}
@@ -432,6 +595,8 @@ function Events() {
   const { events, load } = useEvents();
   const [templates, setTemplates] = useState([]);
   const [templateError, setTemplateError] = useState('');
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState('');
   const [form, setForm] = useState({ name: '', templateFile: 'default-template.svg' });
   useEffect(() => {
     api('/admin/templates').then((files) => {
@@ -444,35 +609,86 @@ function Events() {
   }, []);
   async function submit(e) {
     e.preventDefault();
-    await api('/admin/events', { method: 'POST', body: JSON.stringify(form) });
-    setForm({ name: '', templateFile: templates[0] || 'default-template.svg' });
-    load();
+    setBusy('create');
+    setMessage('');
+    try {
+      const created = await api('/admin/events', { method: 'POST', body: JSON.stringify(form) });
+      setForm({ name: '', templateFile: templates[0] || 'default-template.svg' });
+      setMessage(`${created.name} was created.`);
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
+  async function toggleEvent(event) {
+    setBusy(event._id);
+    setMessage('');
+    try {
+      await api(`/admin/events/${event._id}`, { method: 'PATCH', body: JSON.stringify({ isActive: !event.isActive }) });
+      setMessage(`${event.name} is now ${event.isActive ? 'inactive' : 'active'}.`);
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
   return (
-    <div className="stack">
-      <form className="event-create" onSubmit={submit}>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Event name" required />
-        <button disabled={!form.templateFile}><Plus size={16} /> Create Event</button>
-      </form>
-      <section className="template-picker">
-        <h2>Choose Template</h2>
+    <div className="event-page">
+      {message && <div className="notice">{message}</div>}
+      <section className="event-create-panel">
+        <div className="section-heading">
+          <div><span>New event</span><h2>Create event</h2></div>
+        </div>
         {templateError && <div className="notice danger">{templateError}</div>}
-        {!templateError && !templates.length && <div className="notice">No template images found in frontend/public/img.</div>}
-        <div className="template-grid">
-          {templates.map((template) => (
-            <button
-              type="button"
-              className={form.templateFile === template ? 'template-card selected' : 'template-card'}
-              key={template}
-              onClick={() => setForm({ ...form, templateFile: template })}
-            >
-              <img src={`/img/${template}`} alt={template} />
-              <span>{template}</span>
-            </button>
+        <form className="event-create-form" onSubmit={submit}>
+          <label className="form-field event-name-field">
+            <span>Event name</span>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Enter event name" required />
+          </label>
+          <fieldset className="template-fieldset">
+            <legend>Pass template</legend>
+            {!templateError && !templates.length && <div className="notice">No templates available.</div>}
+            <div className="template-options">
+              {templates.map((template, index) => (
+                <button
+                  type="button"
+                  className={form.templateFile === template ? 'template-option selected' : 'template-option'}
+                  key={template}
+                  onClick={() => setForm({ ...form, templateFile: template })}
+                  aria-pressed={form.templateFile === template}
+                >
+                  <img src={`/img/${template}`} alt={`Pass template ${index + 1}`} />
+                  <span><strong>QR pass template {index + 1}</strong><small>Portrait</small></span>
+                  {form.templateFile === template && <span className="selected-mark"><Check size={15} /> Selected</span>}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <div className="event-form-actions">
+            <button disabled={!form.templateFile || busy === 'create'}>{busy === 'create' ? <Busy label="Creating..." /> : <><Plus size={16} /> Create Event</>}</button>
+          </div>
+        </form>
+      </section>
+      <section className="events-panel">
+        <div className="section-heading event-list-heading">
+          <div><span>Event library</span><h2>Events</h2></div>
+          <strong>{events.length}</strong>
+        </div>
+        <div className="event-list">
+          {events.map((event) => (
+            <article className="event-row" key={event._id}>
+              <img src={`/img/${event.templateFile}`} alt="" />
+              <div className="event-details"><strong>{event.name}</strong><span>QR pass template</span></div>
+              <span className={`status-pill ${event.isActive ? 'ready' : 'pending'}`}>{event.isActive ? 'Active' : 'Inactive'}</span>
+              <button className="secondary event-toggle" disabled={busy === event._id} onClick={() => toggleEvent(event)}>{busy === event._id ? <Busy label="Updating..." /> : <><Power size={16} /> {event.isActive ? 'Deactivate' : 'Activate'}</>}</button>
+            </article>
           ))}
+          {!events.length && <div className="empty-state">No events have been created.</div>}
         </div>
       </section>
-      <div className="event-grid">{events.map((event) => <article key={event._id}><img src={`/img/${event.templateFile}`} /><strong>{event.name}</strong><span>{event.templateFile}</span></article>)}</div>
     </div>
   );
 }
