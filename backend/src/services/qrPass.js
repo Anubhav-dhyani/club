@@ -9,7 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export function publicQrPageUrl(eventSlug, token) {
-  const base = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  const base = (process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  if (process.env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/i.test(base)) {
+    throw new Error('PUBLIC_FRONTEND_URL must use the production website domain');
+  }
   return `${base}/club/pass/${eventSlug}/${token}`;
 }
 
@@ -93,7 +96,13 @@ export async function createQrPass(studentQr, event) {
 
   const image = await sharp(template)
     .composite(overlays)
-    .png()
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      palette: true,
+      colours: 128,
+      dither: 0
+    })
     .toBuffer();
 
   const fileName = `${studentQr.token}.png`;

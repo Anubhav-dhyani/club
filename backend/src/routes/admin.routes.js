@@ -397,10 +397,49 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
   try {
     adminEventFilter(req.user, req.params.eventId);
     const event = await Event.findById(req.params.eventId);
-    const students = await StudentQr.find({ event: event._id, localQrImagePath: { $ne: '' } });
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    const students = await StudentQr.find({
+      event: event._id,
+      status: { $in: ['generated', 'downloaded'] }
+    });
+    if (!students.length) return res.status(404).json({ message: 'No active QR passes are available for this event' });
+
+    const files = [];
+    for (const student of students) {
+      let filePath = student.localQrImagePath || student.qrImagePath;
+      let fileAvailable = false;
+      if (filePath) {
+        try {
+          const stats = await fs.stat(filePath);
+          fileAvailable = stats.isFile() && stats.size <= 600 * 1024;
+        } catch {
+          fileAvailable = false;
+        }
+      }
+      if (!fileAvailable) {
+        const links = await createQrPass(student, event);
+        student.qrUrl = links.qrUrl;
+        student.localQrImageUrl = links.qrImageUrl;
+        student.localQrImagePath = links.qrImagePath;
+        student.qrImageUrl = links.qrImageUrl;
+        student.qrImagePath = links.qrImagePath;
+        student.generatedAt = new Date();
+        await student.save();
+        filePath = links.qrImagePath;
+      }
+      files.push({ student, filePath });
+    }
+
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=${event.slug}-qr-links.zip`);
-    const archive = archiver('zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${event.slug}-qr-passes.zip"`);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('warning', (error) => {
+      if (error.code !== 'ENOENT') res.destroy(error);
+    });
+    archive.on('error', (error) => {
+      if (!res.headersSent) return next(error);
+      res.destroy(error);
+    });
     archive.pipe(res);
     const rows = students.map((s) => ({
       Name: s.name,
@@ -420,10 +459,8 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
       students.map((s) => `${s.name},${s.mobile},${s.token},${s.qrUrl},${s.qrImageUrl || ''},${s.localQrImageUrl || ''}`).join('\n'),
       { name: `${event.slug}-qr-links.csv` }
     );
-    for (const student of students) {
-      if (student.localQrImagePath) {
-        archive.file(student.localQrImagePath, { name: `qr-passes/${student.token}.png` });
-      }
+    for (const { student, filePath } of files) {
+      archive.file(filePath, { name: `qr-passes/${student.token}.png` });
     }
     await archive.finalize();
   } catch (error) {

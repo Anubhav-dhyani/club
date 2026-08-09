@@ -14,7 +14,8 @@ function getTransport() {
 
 export async function sendPasswordEmail(user, password) {
   const transport = getTransport();
-  const text = `Hello ${user.name},\n\nYour club QR admin login is:\nEmail: ${user.email}\nPassword: ${password}\n\nLogin at ${process.env.FRONTEND_URL}/club/admin and change your password from settings.`;
+  const frontendUrl = (process.env.PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  const text = `Hello ${user.name},\n\nYour club QR admin login is:\nEmail: ${user.email}\nPassword: ${password}\n\nLogin at ${frontendUrl}/club/admin and change your password from settings.`;
   if (!transport) {
     console.log(`[DEV MAIL] To ${user.email}\n${text}`);
     return { dev: true };
