@@ -22,7 +22,7 @@ router.post('/verify', async (req, res, next) => {
       return res.status(409).json({ message: `This QR is for ${pass.event.name}, not ${event.name}` });
     }
     if (pass.status === 'used') {
-      return res.status(409).json({ message: 'This QR has already been used', pass });
+      return res.status(409).json({ message: 'Student already registered for this event', pass });
     }
 
     pass.status = 'used';

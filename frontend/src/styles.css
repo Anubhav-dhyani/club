@@ -289,7 +289,8 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 .event-details > span { color: #637277; font-size: 13px; }
 .event-toggle { min-width: 126px; }
 .scanner-page { width: min(1080px, 100%); display: grid; gap: 16px; }
-.scanner-setup { max-width: 420px; padding: 16px; background: white; border: 1px solid #d8e1e5; border-radius: 8px; }
+.scanner-setup { width: min(620px, 100%); padding: 16px; display: grid; grid-template-columns: minmax(240px, 1fr) auto; gap: 12px; align-items: end; background: white; border: 1px solid #d8e1e5; border-radius: 8px; }
+.scanner-setup > button { min-width: 140px; }
 .scanner-empty { min-height: 340px; display: grid; place-items: center; align-content: center; gap: 8px; padding: 24px; color: #637277; background: white; border: 1px dashed #bfcdd1; border-radius: 8px; text-align: center; }
 .scanner-empty h2, .scanner-empty p { margin: 0; }
 .scanner-empty h2 { color: #26363b; font-size: 20px; }
@@ -309,8 +310,10 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 .scan-waiting strong { color: #26363b; }
 .scan-result { min-height: 300px; display: grid; align-content: start; gap: 14px; padding: 20px; border-top: 4px solid #b42318; }
 .scan-result.success { border-top-color: #10a37f; }
+.scan-result.duplicate { border-top-color: #d89518; }
 .result-label { color: #b42318; font-size: 12px; font-weight: 850; text-transform: uppercase; }
 .scan-result.success .result-label { color: #08745f; }
+.scan-result.duplicate .result-label { color: #875b13; }
 .scan-result h2 { margin: 0; font-size: 20px; line-height: 1.3; }
 .scan-result dl { margin: 0; display: grid; border: 1px solid #e5ecef; border-radius: 8px; overflow: hidden; }
 .scan-result dl > div { min-height: 44px; padding: 9px 11px; display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; border-bottom: 1px solid #edf1f3; }
@@ -360,6 +363,8 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
   .admin-shell aside button svg { width: 19px; height: 19px; }
   .admin-shell .brand { padding-left: 6px; }
   .scanner-setup { max-width: none; padding: 12px; }
+  .scanner-setup { grid-template-columns: 1fr; }
+  .scanner-setup > button { width: 100%; }
   .reader { min-height: 330px; }
   .reader video { min-height: 300px; }
   .panel-heading { min-height: 60px; }

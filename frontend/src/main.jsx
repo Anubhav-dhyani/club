@@ -10,7 +10,13 @@ function api(path, options = {}) {
   const token = localStorage.getItem(options.student ? 'studentToken' : 'adminToken');
   const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
   return fetch(`${API}${path}`, { ...options, headers }).then(async (res) => {
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Request failed');
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const error = new Error(data.message || 'Request failed');
+      error.data = data;
+      error.status = res.status;
+      throw error;
+    }
     const type = res.headers.get('content-type') || '';
     return type.includes('application/json') ? res.json() : res.blob();
   });
@@ -345,7 +351,7 @@ function Students() {
     setMessage('Preparing download...');
     try {
       await downloadFile(path, name);
-      setMessage(key === 'zip' ? 'QR ZIP download started. The 84 MB file may take a moment to finish.' : 'Download started.');
+      setMessage(key === 'zip' ? 'QR ZIP download started. Passes are being prepared in the background.' : 'Download started.');
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -711,10 +717,11 @@ function Scanner() {
   const [result, setResult] = useState(null);
   const [message, setMessage] = useState('');
   const [tone, setTone] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
   const scannerRef = useRef(null);
   const processingRef = useRef(false);
   useEffect(() => {
-    if (!event) return;
+    if (!event || !cameraOpen) return;
     setResult(null);
     setMessage('');
     setTone('');
@@ -732,15 +739,23 @@ function Scanner() {
         setMessage(data.message);
         setTone('success');
       } catch (error) {
+        setResult(error.data?.pass || null);
         setMessage(error.message);
-        setTone('error');
+        setTone(error.status === 409 && error.data?.pass ? 'duplicate' : 'error');
       }
     });
     return () => {
       scannerRef.current = null;
       scanner.clear().catch(() => {});
     };
-  }, [event]);
+  }, [event, cameraOpen]);
+  function closeCamera() {
+    setCameraOpen(false);
+    setResult(null);
+    setMessage('');
+    setTone('');
+    processingRef.current = false;
+  }
   function scanNext() {
     setResult(null);
     setMessage('');
@@ -751,10 +766,11 @@ function Scanner() {
   return (
     <div className="scanner-page">
       <section className="scanner-setup">
-        <label className="form-field"><span>Event</span><select value={event} onChange={(e) => setEvent(e.target.value)}><option value="">Select event to begin</option>{events.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
+        <label className="form-field"><span>Event</span><select value={event} onChange={(e) => { setEvent(e.target.value); closeCamera(); }}><option value="">Select event to begin</option>{events.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
+        <button disabled={!event} onClick={() => cameraOpen ? closeCamera() : setCameraOpen(true)}>{cameraOpen ? <><X size={17} /> Close camera</> : <><Camera size={17} /> Open camera</>}</button>
       </section>
-      {!event && <section className="scanner-empty"><Camera size={28} /><h2>Select an event</h2><p>The camera will open after an event is selected.</p></section>}
-      {event && (
+      {!cameraOpen && <section className="scanner-empty"><Camera size={28} /><h2>{event ? 'Camera is ready' : 'Select an event'}</h2><p>{event ? 'Tap Open camera to start scanning.' : 'Choose an event before opening the scanner.'}</p></section>}
+      {event && cameraOpen && (
         <div className="scanner-layout">
           <section className="camera-panel">
             <div className="panel-heading"><div><small>Camera</small><h2>Scan student pass</h2></div><span className="live-indicator">Live</span></div>
@@ -764,7 +780,7 @@ function Scanner() {
             {!message && <div className="scan-waiting"><Camera size={24} /><strong>Ready to scan</strong><span>Place the QR code inside the frame.</span></div>}
             {message && (
               <div className={`scan-result ${tone}`}>
-                <span className="result-label">{tone === 'success' ? 'Pass accepted' : 'Scan unsuccessful'}</span>
+                <span className="result-label">{tone === 'success' ? 'Scan successful' : tone === 'duplicate' ? 'Already registered' : 'Scan unsuccessful'}</span>
                 <h2>{message}</h2>
                 {result && <dl><div><dt>Student</dt><dd>{result.name}</dd></div><div><dt>Mobile</dt><dd>{result.mobile}</dd></div><div><dt>Course</dt><dd>{result.course || '-'}</dd></div><div><dt>Semester</dt><dd>{result.semester || '-'}</dd></div></dl>}
                 <button onClick={scanNext}><Camera size={17} /> Scan next pass</button>

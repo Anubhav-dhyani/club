@@ -427,7 +427,7 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
         await student.save();
         filePath = links.qrImagePath;
       }
-      files.push({ student, filePath });
+      files.push({ student, image: await fs.readFile(filePath) });
     }
 
     res.setHeader('Content-Type', 'application/zip');
@@ -459,8 +459,8 @@ router.get('/students/zip/:eventId', async (req, res, next) => {
       students.map((s) => `${s.name},${s.mobile},${s.token},${s.qrUrl},${s.qrImageUrl || ''},${s.localQrImageUrl || ''}`).join('\n'),
       { name: `${event.slug}-qr-links.csv` }
     );
-    for (const { student, filePath } of files) {
-      archive.file(filePath, { name: `qr-passes/${student.token}.png` });
+    for (const { student, image } of files) {
+      archive.append(image, { name: `qr-passes/${student.token}.png` });
     }
     await archive.finalize();
   } catch (error) {
