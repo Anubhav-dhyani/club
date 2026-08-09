@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Camera, Check, Download, FileSpreadsheet, LayoutDashboard, LoaderCircle, Lock, LogOut, MoreVertical, Pencil, Plus, Power, QrCode, Search, Settings, Trash2, Upload, Users, X } from 'lucide-react';
+import { Camera, Check, Download, FileSpreadsheet, LayoutDashboard, LoaderCircle, Lock, LogOut, Menu, MoreVertical, Pencil, Plus, Power, QrCode, RotateCcw, Search, Settings, Trash2, Upload, Users, X } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import './styles.css';
 
@@ -188,6 +188,7 @@ function AdminLogin({ onLogin }) {
 }
 
 function AdminShell({ user, view, setView, onLogout }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const nav = [
     ['dashboard', LayoutDashboard, 'Dashboard'],
     ['students', Users, 'Students'],
@@ -206,14 +207,15 @@ function AdminShell({ user, view, setView, onLogout }) {
     return true;
   });
   return (
-    <main className="admin-shell">
-      <aside>
-        <div className="brand"><QrCode /> <span>Club QR</span></div>
-        {nav.map(([key, Icon, label]) => <button className={view === key ? 'active' : ''} onClick={() => setView(key)} key={key}><Icon size={18} /> {label}</button>)}
+    <main className={`admin-shell ${menuOpen ? 'menu-open' : ''}`}>
+      {menuOpen && <button className="nav-backdrop" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
+      <aside aria-label="Main navigation">
+        <div className="brand"><QrCode /> <span>Club QR</span><button className="mobile-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><X size={20} /></button></div>
+        {nav.map(([key, Icon, label]) => <button className={view === key ? 'active' : ''} onClick={() => { setView(key); setMenuOpen(false); }} key={key}><Icon size={18} /> {label}</button>)}
         <button onClick={onLogout}><LogOut size={18} /> Logout</button>
       </aside>
       <section className="workspace">
-        <header><div><p>{user.role.replace('_', ' ')}</p><h1>{view}</h1></div></header>
+        <header><button className="mobile-menu" aria-label="Open menu" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div><p>{user.role.replace('_', ' ')}</p><h1>{view}</h1></div></header>
         {view === 'dashboard' && <Dashboard />}
         {view === 'students' && <Students />}
         {view === 'qrdata' && <QrData />}
@@ -259,6 +261,7 @@ function Students() {
   const { events } = useEvents();
   const [event, setEvent] = useState('');
   const [search, setSearch] = useState('');
+  const [usage, setUsage] = useState('');
   const [rows, setRows] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -272,12 +275,13 @@ function Students() {
     const params = new URLSearchParams();
     if (event) params.set('event', event);
     if (search.trim()) params.set('q', search.trim());
+    if (usage) params.set('usage', usage);
     return api(`/admin/students${params.size ? `?${params}` : ''}`).then(setRows).catch((error) => setMessage(error.message));
   };
   useEffect(() => {
     const timeout = setTimeout(load, 250);
     return () => clearTimeout(timeout);
-  }, [event, search]);
+  }, [event, search, usage]);
   useEffect(() => {
     const closeMenu = () => setActiveMenu('');
     const closeOnEscape = (event) => {
@@ -346,6 +350,20 @@ function Students() {
       setBusy('');
     }
   }
+  async function markUnused(student) {
+    setActiveMenu('');
+    setBusy(`unused-${student._id}`);
+    setMessage('Resetting pass status...');
+    try {
+      await api(`/admin/students/${student._id}/mark-unused`, { method: 'PATCH' });
+      setMessage(`${student.name}'s pass is now unused and can be scanned again.`);
+      await load();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
   async function runDownload(path, name, key) {
     setBusy(key);
     setMessage('Preparing download...');
@@ -371,6 +389,11 @@ function Students() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, mobile or email" aria-label="Search students" />
           </label>
           <Filter events={events} value={event} setValue={setEvent} />
+          <select className="usage-filter" value={usage} onChange={(e) => setUsage(e.target.value)} aria-label="Filter by pass status">
+            <option value="">All pass statuses</option>
+            <option value="unused">Unused</option>
+            <option value="used">Used</option>
+          </select>
         </div>
         <div className="toolbar student-actions">
           <button onClick={() => setShowAdd(true)} disabled={!!busy}><Plus size={16} /> Add Student</button>
@@ -441,7 +464,7 @@ function Students() {
       <section className="table-wrap">
         <div className="table-heading"><div><h2>Students</h2><span>{rows.length} record{rows.length === 1 ? '' : 's'}</span></div></div>
         <table className="student-table">
-          <thead><tr>{['Student', 'Mobile', 'Event', 'Course', 'Semester', 'QR status'].map((c) => <th key={c}>{c}</th>)}<th className="actions-column">Actions</th></tr></thead>
+          <thead><tr>{['Student', 'Mobile', 'Event', 'Course', 'Semester', 'Pass status'].map((c) => <th key={c}>{c}</th>)}<th className="actions-column">Actions</th></tr></thead>
           <tbody>
             {rows.map((s, index) => (
               <tr key={s._id}>
@@ -450,13 +473,14 @@ function Students() {
                 <td>{s.event?.name}</td>
                 <td>{s.course || '-'}</td>
                 <td>{s.semester || '-'}</td>
-                <td><span className={`status-pill ${s.qrImageUrl || s.localQrImageUrl ? 'ready' : 'pending'}`}>{s.qrImageUrl || s.localQrImageUrl ? 'Ready' : 'Pending'}</span></td>
+                <td><span className={`status-pill ${s.status === 'used' ? 'used' : 'unused'}`}>{s.status === 'used' ? 'Used' : 'Unused'}</span></td>
                 <td className="actions-column">
                   <div className="row-actions" onMouseDown={(e) => e.stopPropagation()}>
                     <button className="menu-trigger" aria-label={`Actions for ${s.name}`} aria-haspopup="menu" aria-expanded={activeMenu === s._id} title="Student actions" onClick={() => setActiveMenu(activeMenu === s._id ? '' : s._id)}><MoreVertical size={19} /></button>
                     {activeMenu === s._id && (
                       <div className={`action-menu ${index >= rows.length - 2 ? 'open-up' : ''}`} role="menu" aria-label={`Actions for ${s.name}`}>
                         <button role="menuitem" disabled={!(s.qrImageUrl || s.localQrImageUrl) || !!busy} onClick={() => downloadQr(s)}>{busy === `qr-${s._id}` ? <Busy label="Downloading..." /> : <><Download size={16} /> Download QR</>}</button>
+                        {s.status === 'used' && <button role="menuitem" disabled={!!busy} onClick={() => markUnused(s)}>{busy === `unused-${s._id}` ? <Busy label="Resetting..." /> : <><RotateCcw size={16} /> Mark as unused</>}</button>}
                         <button role="menuitem" onClick={() => { setEditing(s); setActiveMenu(''); }}><Pencil size={16} /> Edit Student</button>
                         <button role="menuitem" className="danger-action" onClick={() => { setDeleting(s); setActiveMenu(''); }}><Trash2 size={16} /> Delete Student</button>
                       </div>
@@ -721,6 +745,9 @@ function Scanner() {
   const scannerRef = useRef(null);
   const processingRef = useRef(false);
   useEffect(() => {
+    if (!event && events.length) setEvent(events[0]._id);
+  }, [events, event]);
+  useEffect(() => {
     if (!event || !cameraOpen) return;
     setResult(null);
     setMessage('');
@@ -766,29 +793,27 @@ function Scanner() {
   return (
     <div className="scanner-page">
       <section className="scanner-setup">
+        <div className="scanner-intro"><span>Entry scanner</span><strong>Scan student passes</strong></div>
         <label className="form-field"><span>Event</span><select value={event} onChange={(e) => { setEvent(e.target.value); closeCamera(); }}><option value="">Select event to begin</option>{events.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
-        <button disabled={!event} onClick={() => cameraOpen ? closeCamera() : setCameraOpen(true)}>{cameraOpen ? <><X size={17} /> Close camera</> : <><Camera size={17} /> Open camera</>}</button>
+        <button className="scanner-toggle" disabled={!event} onClick={() => cameraOpen ? closeCamera() : setCameraOpen(true)}>{cameraOpen ? <><X size={19} /> Close camera</> : <><Camera size={19} /> Start scanning</>}</button>
       </section>
-      {!cameraOpen && <section className="scanner-empty"><Camera size={28} /><h2>{event ? 'Camera is ready' : 'Select an event'}</h2><p>{event ? 'Tap Open camera to start scanning.' : 'Choose an event before opening the scanner.'}</p></section>}
+      {!cameraOpen && <section className="scanner-empty"><span className="scanner-empty-icon"><QrCode size={30} /></span><h2>{event ? 'Ready to scan' : 'Select an event'}</h2><p>{event ? 'Tap Start scanning to open the camera.' : 'Choose the event where students are entering.'}</p></section>}
       {event && cameraOpen && (
-        <div className="scanner-layout">
+        <div className="scanner-layout scanner-camera-only">
           <section className="camera-panel">
             <div className="panel-heading"><div><small>Camera</small><h2>Scan student pass</h2></div><span className="live-indicator">Live</span></div>
             <div id="reader" className="reader" />
           </section>
-          <section className="scan-panel">
-            {!message && <div className="scan-waiting"><Camera size={24} /><strong>Ready to scan</strong><span>Place the QR code inside the frame.</span></div>}
-            {message && (
-              <div className={`scan-result ${tone}`}>
-                <span className="result-label">{tone === 'success' ? 'Scan successful' : tone === 'duplicate' ? 'Already registered' : 'Scan unsuccessful'}</span>
-                <h2>{message}</h2>
-                {result && <dl><div><dt>Student</dt><dd>{result.name}</dd></div><div><dt>Mobile</dt><dd>{result.mobile}</dd></div><div><dt>Course</dt><dd>{result.course || '-'}</dd></div><div><dt>Semester</dt><dd>{result.semester || '-'}</dd></div></dl>}
-                <button onClick={scanNext}><Camera size={17} /> Scan next pass</button>
-              </div>
-            )}
-          </section>
         </div>
       )}
+      <Modal open={!!message} title={tone === 'success' ? 'Scan successful' : tone === 'duplicate' ? 'Already registered' : 'Unable to scan'} onClose={scanNext}>
+        <div className={`scan-result ${tone}`}>
+          <span className="result-label">{tone === 'success' ? 'Entry confirmed' : tone === 'duplicate' ? 'Pass already used' : 'Check this pass'}</span>
+          <h2>{message}</h2>
+          {result && <dl><div><dt>Student</dt><dd>{result.name}</dd></div><div><dt>Mobile</dt><dd>{result.mobile}</dd></div><div><dt>Course</dt><dd>{result.course || '-'}</dd></div><div><dt>Semester</dt><dd>{result.semester || '-'}</dd></div></dl>}
+          <button onClick={scanNext}><Camera size={17} /> Scan next pass</button>
+        </div>
+      </Modal>
     </div>
   );
 }

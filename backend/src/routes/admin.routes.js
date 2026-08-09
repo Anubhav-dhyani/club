@@ -139,7 +139,10 @@ router.get('/students', async (req, res, next) => {
   try {
     const filter = adminEventFilter(req.user, req.query.event);
     const q = String(req.query.q || '').trim();
+    const usage = String(req.query.usage || '').trim();
     if (q) filter.$or = [{ name: new RegExp(q, 'i') }, { mobile: new RegExp(q, 'i') }, { email: new RegExp(q, 'i') }];
+    if (usage === 'used') filter.status = 'used';
+    if (usage === 'unused') filter.status = { $ne: 'used' };
     res.json(await StudentQr.find(filter).populate('event', 'name slug').sort({ createdAt: -1 }).limit(500));
   } catch (error) {
     next(error);
@@ -163,6 +166,23 @@ router.patch('/students/:id', requireRole('super_admin', 'admin'), async (req, r
     const protectedFields = ['token', 'status', 'qrUrl', 'qrImageUrl', 'qrImagePath', 'localQrImageUrl', 'localQrImagePath', 'usedAt', 'usedBy'];
     protectedFields.forEach((field) => delete req.body[field]);
     res.json(await StudentQr.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('event', 'name slug'));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/students/:id/mark-unused', requireRole('super_admin', 'admin'), async (req, res, next) => {
+  try {
+    const student = await StudentQr.findById(req.params.id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    adminEventFilter(req.user, student.event);
+    if (student.status !== 'used') return res.status(409).json({ message: 'This pass is already unused' });
+
+    student.status = student.downloadedAt ? 'downloaded' : (student.qrImageUrl || student.localQrImageUrl ? 'generated' : 'pending');
+    student.usedAt = undefined;
+    student.usedBy = undefined;
+    await student.save();
+    res.json({ message: 'Pass marked as unused', student: await student.populate('event', 'name slug') });
   } catch (error) {
     next(error);
   }

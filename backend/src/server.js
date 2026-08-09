@@ -18,7 +18,20 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-app.use(cors({ origin: process.env.FRONTEND_URL || true, credentials: true }));
+const configuredOrigins = [process.env.FRONTEND_URL, process.env.PUBLIC_FRONTEND_URL]
+  .filter(Boolean)
+  .map((origin) => origin.replace(/\/$/, ''));
+
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const isLocalDevelopment = process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin);
+    if (isLocalDevelopment || configuredOrigins.includes(normalizedOrigin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
+  }
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
