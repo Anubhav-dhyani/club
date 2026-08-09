@@ -324,7 +324,7 @@ function QrData() {
   const [event, setEvent] = useState('');
   const [rows, setRows] = useState([]);
   const [showImport, setShowImport] = useState(false);
-  const load = () => api(`/admin/students${event ? `?event=${event}` : ''}`).then((data) => setRows(data.filter((row) => row.localQrImageUrl || row.qrImageUrl || row.qrUrl)));
+  const load = () => api(`/admin/students${event ? `?event=${event}` : ''}`).then((data) => setRows(data.filter((row) => row.qrImageUrl)));
   useEffect(() => { load(); }, [event]);
   return (
     <div className="stack">
@@ -354,11 +354,10 @@ function QrData() {
           event: s.event?.name,
           token: s.token,
           page: s.qrUrl ? 'ready' : '-',
-          generated: s.localQrImageUrl ? 'ready' : '-',
-          uploaded: s.qrImageUrl ? 'ready' : '-',
+          finalQrLink: s.qrImageUrl || '-',
           status: s.status
         }))}
-        cols={['name', 'mobile', 'event', 'token', 'page', 'generated', 'uploaded', 'status']}
+        cols={['name', 'mobile', 'event', 'token', 'page', 'finalQrLink', 'status']}
       />
     </div>
   );
