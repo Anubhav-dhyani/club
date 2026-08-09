@@ -49,20 +49,24 @@ select[multiple] { height: 92px; padding: 8px; }
 .student-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 1fr 520px;
+  place-items: center;
+  padding: 32px 20px;
+  background: #f3f6f6;
 }
-.student-hero {
-  background: linear-gradient(rgba(12, 42, 39, .72), rgba(12, 42, 39, .72)), url('/img/ChatGPT%20Image%20Aug%209,%202026,%2005_50_49%20PM.png') center/cover;
-  color: white;
-  display: flex;
-  align-items: end;
-  padding: 72px;
-}
-.student-hero h1 { font-size: 56px; line-height: 1; margin: 8px 0 16px; max-width: 760px; letter-spacing: 0; }
-.student-hero p { max-width: 620px; font-size: 18px; color: #e4f2ef; }
-.eyebrow { text-transform: uppercase; font-size: 13px; font-weight: 800; letter-spacing: 0; }
-.auth-panel { padding: 52px; display: flex; align-items: center; }
-.auth-panel form, .settings-form { width: 100%; display: grid; gap: 14px; }
+.student-access { width: min(440px, 100%); display: grid; gap: 22px; padding: 28px; background: white; border: 1px solid #d8e1e5; border-radius: 8px; box-shadow: 0 16px 45px rgba(20, 35, 40, .08); }
+.access-brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid #edf1f3; }
+.access-brand span { font-size: 17px; font-weight: 850; }
+.access-brand small, .passes-heading small { color: #637277; font-weight: 700; }
+.access-heading { display: grid; gap: 7px; }
+.access-heading h1, .passes-heading h1 { margin: 0; font-size: 27px; line-height: 1.15; }
+.access-heading p { margin: 0; color: #637277; line-height: 1.5; }
+.access-form, .settings-form { width: 100%; display: grid; gap: 15px; }
+.access-form input { height: 48px; font-size: 16px; }
+.access-form > button:not(.text-button) { height: 48px; width: 100%; }
+.otp-input { letter-spacing: 4px; font-weight: 750; }
+button.text-button { height: auto; min-height: 32px; padding: 4px; background: transparent; color: #0f766e; }
+.student-passes { display: grid; gap: 18px; }
+.passes-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
 .notice { padding: 12px 14px; background: #e6f4f1; border: 1px solid #b8ded7; border-radius: 8px; margin-bottom: 14px; }
 .danger { background: #fff1f2; border-color: #fecdd3; color: #9f1239; }
 
@@ -73,7 +77,7 @@ select[multiple] { height: 92px; padding: 8px; }
   background: white;
   overflow: hidden;
 }
-.pass-card img { width: 100%; display: block; aspect-ratio: 3 / 2; object-fit: cover; }
+.pass-card img { width: 100%; display: block; aspect-ratio: 2 / 3; object-fit: contain; background: #f7f9f9; }
 .pass-card div { padding: 14px; display: flex; justify-content: space-between; }
 .pass-card button { width: calc(100% - 28px); margin: 0 14px 14px; }
 
@@ -81,19 +85,24 @@ select[multiple] { height: 92px; padding: 8px; }
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: #eef3f2;
+  padding: 20px;
+  background: #f3f6f6;
 }
 .login-box {
-  width: 360px;
+  width: min(390px, 100%);
   border: 1px solid #d5dde1;
   border-radius: 8px;
   background: white;
-  padding: 28px;
+  padding: 30px;
   display: grid;
   gap: 14px;
   box-shadow: 0 20px 60px rgba(20, 35, 40, .08);
 }
-.login-box h1 { margin: 0; font-size: 24px; }
+.login-heading { display: grid; gap: 5px; margin-bottom: 6px; }
+.login-heading > span { color: #0f766e; font-size: 13px; font-weight: 850; text-transform: uppercase; }
+.login-heading h1 { margin: 0; font-size: 26px; }
+.login-heading p { margin: 0; color: #637277; }
+.login-box > button { height: 46px; margin-top: 3px; }
 
 .admin-shell { min-height: 100vh; display: grid; grid-template-columns: 248px 1fr; }
 aside {
@@ -279,7 +288,36 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 .event-details > strong { font-size: 15px; }
 .event-details > span { color: #637277; font-size: 13px; }
 .event-toggle { min-width: 126px; }
-.reader { max-width: 560px; background: white; border-radius: 8px; overflow: hidden; }
+.scanner-page { width: min(1080px, 100%); display: grid; gap: 16px; }
+.scanner-setup { max-width: 420px; padding: 16px; background: white; border: 1px solid #d8e1e5; border-radius: 8px; }
+.scanner-empty { min-height: 340px; display: grid; place-items: center; align-content: center; gap: 8px; padding: 24px; color: #637277; background: white; border: 1px dashed #bfcdd1; border-radius: 8px; text-align: center; }
+.scanner-empty h2, .scanner-empty p { margin: 0; }
+.scanner-empty h2 { color: #26363b; font-size: 20px; }
+.scanner-layout { display: grid; grid-template-columns: minmax(320px, 600px) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.camera-panel, .scan-panel { background: white; border: 1px solid #d8e1e5; border-radius: 8px; overflow: hidden; }
+.panel-heading { min-height: 68px; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #edf1f3; }
+.panel-heading > div { display: grid; gap: 2px; }
+.panel-heading small { color: #637277; font-weight: 700; }
+.panel-heading h2 { margin: 0; font-size: 18px; }
+.live-indicator { display: inline-flex; align-items: center; gap: 6px; color: #08745f; font-size: 12px; font-weight: 800; }
+.live-indicator::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #10a37f; }
+.reader { width: 100%; min-height: 430px; background: #101a1c; overflow: hidden; }
+.reader video { width: 100% !important; min-height: 360px; object-fit: cover; }
+.reader > div { border: 0 !important; }
+.scan-panel { min-height: 300px; }
+.scan-waiting { min-height: 300px; display: grid; place-items: center; align-content: center; gap: 8px; padding: 24px; text-align: center; color: #637277; }
+.scan-waiting strong { color: #26363b; }
+.scan-result { min-height: 300px; display: grid; align-content: start; gap: 14px; padding: 20px; border-top: 4px solid #b42318; }
+.scan-result.success { border-top-color: #10a37f; }
+.result-label { color: #b42318; font-size: 12px; font-weight: 850; text-transform: uppercase; }
+.scan-result.success .result-label { color: #08745f; }
+.scan-result h2 { margin: 0; font-size: 20px; line-height: 1.3; }
+.scan-result dl { margin: 0; display: grid; border: 1px solid #e5ecef; border-radius: 8px; overflow: hidden; }
+.scan-result dl > div { min-height: 44px; padding: 9px 11px; display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: center; border-bottom: 1px solid #edf1f3; }
+.scan-result dl > div:last-child { border-bottom: 0; }
+.scan-result dt { color: #637277; font-size: 12px; font-weight: 700; }
+.scan-result dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.scan-result button { width: 100%; }
 .public-pass { min-height: 100vh; display: grid; place-items: center; gap: 18px; padding: 28px; }
 .public-pass img { width: min(920px, 100%); border-radius: 8px; box-shadow: 0 20px 60px rgba(20, 35, 40, .12); }
 .download-link {
@@ -296,10 +334,11 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 }
 
 @media (max-width: 900px) {
-  .student-shell, .admin-shell, .split { grid-template-columns: 1fr; }
-  .student-hero { min-height: 360px; padding: 28px; }
-  .student-hero h1 { font-size: 40px; }
-  aside { position: static; }
+  .admin-shell, .split, .scanner-layout { grid-template-columns: 1fr; }
+  .admin-shell aside { position: sticky; top: 0; z-index: 30; padding: 10px 12px; flex-direction: row; align-items: center; overflow-x: auto; }
+  .admin-shell .brand { flex: 0 0 auto; margin: 0 8px 0 0; }
+  .admin-shell .brand span { display: none; }
+  .admin-shell aside button { flex: 0 0 auto; justify-content: center; white-space: nowrap; }
   .metric-grid, .inline-form { grid-template-columns: 1fr 1fr; }
   .event-create-form { grid-template-columns: 1fr; }
   .student-filters { grid-template-columns: 1fr; }
@@ -308,9 +347,23 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 }
 
 @media (max-width: 560px) {
-  .auth-panel, .workspace { padding: 20px; }
+  .workspace { padding: 18px 14px; }
+  .workspace > header { margin-bottom: 16px; }
+  .workspace > header h1 { font-size: 25px; }
   .metric-grid, .inline-form { grid-template-columns: 1fr; }
-  .login-box { width: calc(100vw - 32px); }
+  .student-shell { padding: 0; place-items: stretch; background: white; }
+  .student-access { width: 100%; min-height: 100vh; padding: 22px 18px; border: 0; box-shadow: none; align-content: start; }
+  .login-box { padding: 24px 20px; }
+  .admin-login { align-items: start; padding-top: 7vh; }
+  .admin-shell aside { padding: 8px; }
+  .admin-shell aside button { width: 42px; padding: 0; font-size: 0; }
+  .admin-shell aside button svg { width: 19px; height: 19px; }
+  .admin-shell .brand { padding-left: 6px; }
+  .scanner-setup { max-width: none; padding: 12px; }
+  .reader { min-height: 330px; }
+  .reader video { min-height: 300px; }
+  .panel-heading { min-height: 60px; }
+  .scan-panel, .scan-waiting, .scan-result { min-height: 0; }
   .student-controls { padding: 10px; }
   .student-actions button { flex: 1 1 calc(50% - 10px); padding: 0 10px; }
   .student-edit-form { grid-template-columns: 1fr; }

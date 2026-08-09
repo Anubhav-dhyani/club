@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Camera, Check, Download, FileSpreadsheet, LayoutDashboard, LoaderCircle, Lock, LogOut, MoreVertical, Pencil, Plus, Power, QrCode, Search, Settings, Trash2, Upload, Users, X } from 'lucide-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
@@ -46,6 +46,7 @@ function StudentApp() {
   const [step, setStep] = useState(localStorage.getItem('studentToken') ? 'passes' : 'mobile');
   const [passes, setPasses] = useState([]);
   const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState('');
 
   async function loadPasses() {
     try {
@@ -66,16 +67,31 @@ function StudentApp() {
   async function requestOtp(e) {
     e.preventDefault();
     setMessage('');
-    await api('/auth/student/request-otp', { method: 'POST', body: JSON.stringify({ mobile }), student: true });
-    setStep('otp');
-    setMessage('OTP sent to your mobile number.');
+    setBusy('otp-request');
+    try {
+      await api('/auth/student/request-otp', { method: 'POST', body: JSON.stringify({ mobile }), student: true });
+      setStep('otp');
+      setMessage(`OTP sent to ${mobile}.`);
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
 
   async function verifyOtp(e) {
     e.preventDefault();
-    const data = await api('/auth/student/verify-otp', { method: 'POST', body: JSON.stringify({ mobile, otp }), student: true });
-    localStorage.setItem('studentToken', data.token);
-    await loadPasses();
+    setMessage('');
+    setBusy('otp-verify');
+    try {
+      const data = await api('/auth/student/verify-otp', { method: 'POST', body: JSON.stringify({ mobile, otp }), student: true });
+      localStorage.setItem('studentToken', data.token);
+      await loadPasses();
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
   }
 
   async function downloadPass(pass) {
@@ -85,41 +101,33 @@ function StudentApp() {
 
   return (
     <main className="student-shell">
-      <section className="student-hero">
-        <div>
-          <p className="eyebrow">Event QR Pass</p>
-          <h1>Download your active club passes</h1>
-          <p>Login with your registered mobile number. Used passes disappear automatically after scan.</p>
-        </div>
-      </section>
-      <section className="auth-panel">
-        {message && <div className="notice">{message}</div>}
+      <section className="student-access">
+        <div className="access-brand"><span>GEU Clubs</span><small>Student access</small></div>
+        {step !== 'passes' && <div className="access-heading"><h1>Your event passes</h1><p>Continue with your registered mobile number.</p></div>}
+        {message && <div className="notice" role="status">{message}</div>}
         {step === 'mobile' && (
-          <form onSubmit={requestOtp}>
-            <label>Mobile number</label>
-            <input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Registered mobile" required />
-            <button><Lock size={18} /> Send OTP</button>
+          <form className="access-form" onSubmit={requestOtp}>
+            <label className="form-field"><span>Mobile number</span><input value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="10-digit mobile number" inputMode="numeric" autoComplete="tel" minLength="10" maxLength="10" required /></label>
+            <button disabled={busy === 'otp-request'}>{busy === 'otp-request' ? <Busy label="Sending OTP..." /> : 'Send OTP'}</button>
           </form>
         )}
         {step === 'otp' && (
-          <form onSubmit={verifyOtp}>
-            <label>OTP</label>
-            <input value={otp} onChange={(e) => setOtp(e.target.value)} placeholder="6 digit OTP" required />
-            <button><Lock size={18} /> Verify and continue</button>
+          <form className="access-form" onSubmit={verifyOtp}>
+            <label className="form-field"><span>One-time password</span><input className="otp-input" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit OTP" inputMode="numeric" autoComplete="one-time-code" minLength="6" maxLength="6" required /></label>
+            <button disabled={busy === 'otp-verify'}>{busy === 'otp-verify' ? <Busy label="Verifying..." /> : 'View my passes'}</button>
+            <button type="button" className="text-button" onClick={() => { setStep('mobile'); setOtp(''); setMessage(''); }}>Change mobile number</button>
           </form>
         )}
         {step === 'passes' && (
-          <div className="pass-grid">
-            {passes.map((pass) => (
-              <article className="pass-card" key={pass._id}>
-                <img src={pass.qrImageUrl} alt={pass.event.name} />
-                <div>
-                  <strong>{pass.event.name}</strong>
-                  <span>{pass.status}</span>
-                </div>
-                <button onClick={() => downloadPass(pass)}><Download size={18} /> Download</button>
-              </article>
-            ))}
+          <div className="student-passes">
+            <div className="passes-heading"><div><small>Active passes</small><h1>My passes</h1></div><button className="text-button" onClick={() => { localStorage.removeItem('studentToken'); setStep('mobile'); setPasses([]); }}>Sign out</button></div>
+            <div className="pass-grid">{passes.map((pass) => (
+                <article className="pass-card" key={pass._id}>
+                  <img src={pass.qrImageUrl} alt={`${pass.event.name} pass`} />
+                  <div><strong>{pass.event.name}</strong><span className="status-pill ready">Ready</span></div>
+                  <button onClick={() => downloadPass(pass)}><Download size={18} /> Download pass</button>
+                </article>
+              ))}</div>
           </div>
         )}
       </section>
@@ -144,8 +152,11 @@ function AdminLogin({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   async function submit(e) {
     e.preventDefault();
+    setBusy(true);
+    setError('');
     try {
       const data = await api('/auth/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       localStorage.setItem('adminToken', data.token);
@@ -153,17 +164,18 @@ function AdminLogin({ onLogin }) {
       onLogin(data.user);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
   return (
     <main className="admin-login">
       <form onSubmit={submit} className="login-box">
-        <QrCode size={34} />
-        <h1>Club Access</h1>
+        <div className="login-heading"><span>GEU Clubs</span><h1>Staff sign in</h1><p>Admin and coordinator access</p></div>
         {error && <div className="notice danger">{error}</div>}
-        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" required />
-        <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" required />
-        <button>Sign in</button>
+        <label className="form-field"><span>Email address</span><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" type="email" autoComplete="email" required /></label>
+        <label className="form-field"><span>Password</span><input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter password" type="password" autoComplete="current-password" required /></label>
+        <button disabled={busy}>{busy ? <Busy label="Signing in..." /> : 'Sign in'}</button>
       </form>
     </main>
   );
@@ -698,27 +710,69 @@ function Scanner() {
   const [event, setEvent] = useState('');
   const [result, setResult] = useState(null);
   const [message, setMessage] = useState('');
+  const [tone, setTone] = useState('');
+  const scannerRef = useRef(null);
+  const processingRef = useRef(false);
   useEffect(() => {
     if (!event) return;
-    const scanner = new Html5QrcodeScanner('reader', { fps: 10, qrbox: 260 }, false);
+    setResult(null);
+    setMessage('');
+    setTone('');
+    processingRef.current = false;
+    const scanner = new Html5QrcodeScanner('reader', { fps: 10, qrbox: { width: 240, height: 240 }, aspectRatio: 1 }, false);
+    scannerRef.current = scanner;
     scanner.render(async (decodedText) => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      scanner.pause(true);
       const token = decodedText.split('/').pop();
       try {
         const data = await api('/scan/verify', { method: 'POST', body: JSON.stringify({ token, eventId: event }) });
         setResult(data.pass);
         setMessage(data.message);
+        setTone('success');
       } catch (error) {
         setMessage(error.message);
+        setTone('error');
       }
     });
-    return () => scanner.clear().catch(() => {});
+    return () => {
+      scannerRef.current = null;
+      scanner.clear().catch(() => {});
+    };
   }, [event]);
+  function scanNext() {
+    setResult(null);
+    setMessage('');
+    setTone('');
+    processingRef.current = false;
+    scannerRef.current?.resume();
+  }
   return (
-    <div className="stack">
-      <Filter events={events} value={event} setValue={setEvent} />
-      <div id="reader" className="reader" />
-      {message && <div className="notice">{message}</div>}
-      {result && <Table title="Student details" rows={[{ name: result.name, mobile: result.mobile, course: result.course, semester: result.semester, status: result.status }]} cols={['name', 'mobile', 'course', 'semester', 'status']} />}
+    <div className="scanner-page">
+      <section className="scanner-setup">
+        <label className="form-field"><span>Event</span><select value={event} onChange={(e) => setEvent(e.target.value)}><option value="">Select event to begin</option>{events.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
+      </section>
+      {!event && <section className="scanner-empty"><Camera size={28} /><h2>Select an event</h2><p>The camera will open after an event is selected.</p></section>}
+      {event && (
+        <div className="scanner-layout">
+          <section className="camera-panel">
+            <div className="panel-heading"><div><small>Camera</small><h2>Scan student pass</h2></div><span className="live-indicator">Live</span></div>
+            <div id="reader" className="reader" />
+          </section>
+          <section className="scan-panel">
+            {!message && <div className="scan-waiting"><Camera size={24} /><strong>Ready to scan</strong><span>Place the QR code inside the frame.</span></div>}
+            {message && (
+              <div className={`scan-result ${tone}`}>
+                <span className="result-label">{tone === 'success' ? 'Pass accepted' : 'Scan unsuccessful'}</span>
+                <h2>{message}</h2>
+                {result && <dl><div><dt>Student</dt><dd>{result.name}</dd></div><div><dt>Mobile</dt><dd>{result.mobile}</dd></div><div><dt>Course</dt><dd>{result.course || '-'}</dd></div><div><dt>Semester</dt><dd>{result.semester || '-'}</dd></div></dl>}
+                <button onClick={scanNext}><Camera size={17} /> Scan next pass</button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
