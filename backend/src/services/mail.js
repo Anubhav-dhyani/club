@@ -21,7 +21,7 @@ export async function sendPasswordEmail(user, password) {
     return { dev: true };
   }
   return transport.sendMail({
-    from: process.env.SMTP_FROM,
+    from: process.env.SMTP_USER,
     to: user.email,
     subject: 'Your Club QR login',
     text
