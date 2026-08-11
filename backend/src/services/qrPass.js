@@ -29,9 +29,10 @@ function placementForTemplate(event, templateWidth, templateHeight) {
   const isGraphicEraPortrait = templateWidth === 1024 && templateHeight === 1536;
   const isOldDefault = placement.x === 760 && placement.y === 500 && placement.size === 260;
   const isPreviousGraphicEraDefault = placement.x === 277 && placement.y === 574 && placement.size === 470;
+  const isHighGraphicEraDefault = placement.x === 297 && placement.y === 594 && placement.size === 430;
 
-  if (isGraphicEraPortrait && (!placement.size || isOldDefault || isPreviousGraphicEraDefault)) {
-    return { x: 297, y: 594, size: 430 };
+  if (isGraphicEraPortrait && (!placement.size || isOldDefault || isPreviousGraphicEraDefault || isHighGraphicEraDefault)) {
+    return { x: 297, y: 714, size: 430 };
   }
 
   return placement;
@@ -78,18 +79,20 @@ export async function createQrPass(studentQr, event) {
     });
   }
   if (templateWidth === 1024 && templateHeight === 1536) {
+    const backgroundPadding = 20;
+    const backgroundSize = qrSize + (backgroundPadding * 2);
     const qrBackground = await sharp({
       create: {
-        width: 470,
-        height: 470,
+        width: backgroundSize,
+        height: backgroundSize,
         channels: 4,
         background: '#ffffff'
       }
     }).png().toBuffer();
     overlays.push({
       input: qrBackground,
-      left: 277,
-      top: 574
+      left: clamp(qrLeft - backgroundPadding, 0, Math.max(0, templateWidth - backgroundSize)),
+      top: clamp(qrTop - backgroundPadding, 0, Math.max(0, templateHeight - backgroundSize))
     });
   }
   overlays.push({ input: qrPng, left: qrLeft, top: qrTop });
