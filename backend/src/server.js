@@ -17,6 +17,7 @@ import { ensureSuperAdmin } from './utils/bootstrap.js';
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const templateImageDir = path.resolve(__dirname, '..', '..', 'frontend', 'public', 'img');
 
 const configuredOrigins = [process.env.FRONTEND_URL, process.env.PUBLIC_FRONTEND_URL]
   .filter(Boolean)
@@ -36,6 +37,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/generated', express.static(path.join(__dirname, '..', 'generated')));
+app.use('/api/templates', express.static(templateImageDir));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);

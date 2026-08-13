@@ -6,6 +6,10 @@ import './styles.css';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
+function templateUrl(fileName) {
+  return `${API.replace(/\/$/, '')}/templates/${encodeURIComponent(fileName)}`;
+}
+
 function api(path, options = {}) {
   const token = localStorage.getItem(options.student ? 'studentToken' : 'adminToken');
   const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -744,7 +748,7 @@ function Events() {
                   onClick={() => setForm({ ...form, templateFile: template })}
                   aria-pressed={form.templateFile === template}
                 >
-                  <img src={`/img/${encodeURIComponent(template)}`} alt={`Pass template ${index + 1}`} />
+                  <img src={templateUrl(template)} alt={`Pass template ${index + 1}`} />
                   <span><strong>{template.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')}</strong><small>Pass template</small></span>
                   {form.templateFile === template && <span className="selected-mark"><Check size={15} /> Selected</span>}
                 </button>
@@ -764,7 +768,7 @@ function Events() {
         <div className="event-list">
           {events.map((event) => (
             <article className="event-row" key={event._id}>
-              <img src={`/img/${encodeURIComponent(event.templateFile)}`} alt="" />
+              <img src={templateUrl(event.templateFile)} alt="" />
               <div className="event-details"><strong>{event.name}</strong><span>QR pass template</span></div>
               <span className={`status-pill ${event.isActive ? 'ready' : 'pending'}`}>{event.isActive ? 'Active' : 'Inactive'}</span>
               <button className="secondary event-toggle" disabled={busy === event._id} onClick={() => toggleEvent(event)}>{busy === event._id ? <Busy label="Updating..." /> : <><Power size={16} /> {event.isActive ? 'Deactivate' : 'Activate'}</>}</button>
