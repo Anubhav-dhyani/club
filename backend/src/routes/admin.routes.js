@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 import Event from '../models/Event.js';
 import StudentQr from '../models/StudentQr.js';
 import UploadBatch from '../models/UploadBatch.js';
@@ -19,6 +20,19 @@ import { sendPasswordEmail } from '../services/mail.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/' });
+const templateUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, callback) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      const error = new Error('Template must be a PNG, JPG, or WebP image');
+      error.status = 400;
+      return callback(error);
+    }
+    callback(null, true);
+  }
+});
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const imgDir = path.resolve(__dirname, '..', '..', '..', 'frontend', 'public', 'img');
@@ -100,6 +114,31 @@ router.get('/templates', requireRole('super_admin'), async (_req, res, next) => 
     const files = await fs.readdir(imgDir);
     const templates = files.filter((file) => !file.startsWith('.') && !/^favicon\./i.test(file) && /\.(png|jpe?g|webp|svg)$/i.test(file));
     res.json(templates);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/templates', requireRole('super_admin'), templateUpload.single('template'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Choose a template image to upload' });
+
+    const metadata = await sharp(req.file.buffer).metadata().catch(() => null);
+    if (!metadata?.width || !metadata?.height) {
+      return res.status(400).json({ message: 'The selected file is not a valid image' });
+    }
+
+    const extensionByType = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' };
+    const originalName = path.parse(req.file.originalname).name
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'pass-template';
+    const fileName = `${originalName}-${Date.now()}${extensionByType[req.file.mimetype]}`;
+
+    await fs.mkdir(imgDir, { recursive: true });
+    await fs.writeFile(path.join(imgDir, fileName), req.file.buffer, { flag: 'wx' });
+    res.status(201).json({ fileName, width: metadata.width, height: metadata.height });
   } catch (error) {
     next(error);
   }

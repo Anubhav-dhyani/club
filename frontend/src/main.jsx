@@ -637,18 +637,40 @@ function Events() {
   const { events, load } = useEvents();
   const [templates, setTemplates] = useState([]);
   const [templateError, setTemplateError] = useState('');
+  const [templateFile, setTemplateFile] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
   const [form, setForm] = useState({ name: '', templateFile: 'default-template.svg' });
-  useEffect(() => {
-    api('/admin/templates').then((files) => {
+  function loadTemplates(preferredTemplate = '') {
+    return api('/admin/templates').then((files) => {
       setTemplates(files);
       setTemplateError('');
-      if (files.length && !files.includes(form.templateFile)) {
-        setForm((current) => ({ ...current, templateFile: files[0] }));
-      }
+      setForm((current) => ({
+        ...current,
+        templateFile: preferredTemplate || (files.includes(current.templateFile) ? current.templateFile : files[0] || '')
+      }));
     }).catch((error) => setTemplateError(error.message));
+  }
+  useEffect(() => {
+    loadTemplates();
   }, []);
+  async function uploadTemplate() {
+    if (!templateFile) return;
+    setBusy('template-upload');
+    setMessage('');
+    const body = new FormData();
+    body.append('template', templateFile);
+    try {
+      const uploaded = await api('/admin/templates', { method: 'POST', body });
+      await loadTemplates(uploaded.fileName);
+      setTemplateFile(null);
+      setMessage('Template uploaded and selected. You can now create the event.');
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setBusy('');
+    }
+  }
   async function submit(e) {
     e.preventDefault();
     setBusy('create');
@@ -680,6 +702,26 @@ function Events() {
   return (
     <div className="event-page">
       {message && <div className="notice">{message}</div>}
+      <section className="template-upload-panel">
+        <div className="section-heading">
+          <div><span>Pass design</span><h2>Upload template</h2></div>
+        </div>
+        <div className="template-upload-content">
+          <div>
+            <strong>Add a pass template</strong>
+            <p>Upload a PNG, JPG, or WebP image up to 10 MB. After uploading, select it below to create your event.</p>
+          </div>
+          <div className="template-upload-actions">
+            <label className={`file-picker ${busy ? 'disabled' : ''}`}>
+              <Upload size={16} /> {templateFile ? templateFile.name : 'Choose image'}
+              <input key={templateFile ? templateFile.name : 'empty'} type="file" accept="image/png,image/jpeg,image/webp" disabled={!!busy} onChange={(e) => setTemplateFile(e.target.files[0] || null)} />
+            </label>
+            <button type="button" disabled={!templateFile || !!busy} onClick={uploadTemplate}>
+              {busy === 'template-upload' ? <Busy label="Uploading..." /> : <><Upload size={16} /> Upload Template</>}
+            </button>
+          </div>
+        </div>
+      </section>
       <section className="event-create-panel">
         <div className="section-heading">
           <div><span>New event</span><h2>Create event</h2></div>
@@ -702,15 +744,15 @@ function Events() {
                   onClick={() => setForm({ ...form, templateFile: template })}
                   aria-pressed={form.templateFile === template}
                 >
-                  <img src={`/img/${template}`} alt={`Pass template ${index + 1}`} />
-                  <span><strong>QR pass template {index + 1}</strong><small>Portrait</small></span>
+                  <img src={`/img/${encodeURIComponent(template)}`} alt={`Pass template ${index + 1}`} />
+                  <span><strong>{template.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ')}</strong><small>Pass template</small></span>
                   {form.templateFile === template && <span className="selected-mark"><Check size={15} /> Selected</span>}
                 </button>
               ))}
             </div>
           </fieldset>
           <div className="event-form-actions">
-            <button disabled={!form.templateFile || busy === 'create'}>{busy === 'create' ? <Busy label="Creating..." /> : <><Plus size={16} /> Create Event</>}</button>
+            <button disabled={!form.templateFile || !!busy}>{busy === 'create' ? <Busy label="Creating..." /> : <><Plus size={16} /> Create Event</>}</button>
           </div>
         </form>
       </section>
@@ -722,7 +764,7 @@ function Events() {
         <div className="event-list">
           {events.map((event) => (
             <article className="event-row" key={event._id}>
-              <img src={`/img/${event.templateFile}`} alt="" />
+              <img src={`/img/${encodeURIComponent(event.templateFile)}`} alt="" />
               <div className="event-details"><strong>{event.name}</strong><span>QR pass template</span></div>
               <span className={`status-pill ${event.isActive ? 'ready' : 'pending'}`}>{event.isActive ? 'Active' : 'Inactive'}</span>
               <button className="secondary event-toggle" disabled={busy === event._id} onClick={() => toggleEvent(event)}>{busy === event._id ? <Busy label="Updating..." /> : <><Power size={16} /> {event.isActive ? 'Deactivate' : 'Activate'}</>}</button>

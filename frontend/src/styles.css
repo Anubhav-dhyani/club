@@ -263,11 +263,16 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
 }
 .muted { color: #637277; }
 .event-page { display: grid; gap: 18px; max-width: 1120px; }
-.event-create-panel, .events-panel { background: white; border: 1px solid #d8e1e5; border-radius: 8px; }
+.template-upload-panel, .event-create-panel, .events-panel { background: white; border: 1px solid #d8e1e5; border-radius: 8px; }
 .section-heading { min-height: 72px; padding: 15px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5ecef; }
 .section-heading div { display: grid; gap: 3px; }
 .section-heading span { color: #637277; font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .section-heading h2 { margin: 0; font-size: 19px; }
+.template-upload-content { padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.template-upload-content > div:first-child { display: grid; gap: 6px; }
+.template-upload-content p { max-width: 620px; margin: 0; color: #637277; font-size: 13px; line-height: 1.5; }
+.template-upload-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.template-upload-actions .file-picker { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .event-create-form { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 22px; padding: 20px; align-items: start; }
 .event-name-field { align-self: start; }
 .template-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -356,6 +361,8 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
   .workspace > header { justify-content: flex-start; gap: 12px; }
   .metric-grid, .inline-form { grid-template-columns: 1fr 1fr; }
   .event-create-form { grid-template-columns: 1fr; }
+  .template-upload-content { align-items: stretch; flex-direction: column; }
+  .template-upload-actions { justify-content: flex-start; }
   .student-filters { grid-template-columns: 1fr; }
   .event-filter { max-width: none; }
   .student-actions { justify-content: flex-start; }
@@ -368,6 +375,8 @@ button.menu-trigger:hover { background: #e6f4f1; color: #0f766e; }
   .workspace > header { margin-bottom: 16px; }
   .workspace > header h1 { font-size: 25px; }
   .metric-grid, .inline-form { grid-template-columns: 1fr; }
+  .template-upload-actions { align-items: stretch; flex-direction: column; }
+  .template-upload-actions .file-picker, .template-upload-actions button { width: 100%; max-width: none; }
   .student-shell { padding: 0; place-items: stretch; background: white; }
   .student-access { width: 100%; min-height: 100vh; padding: 22px 18px; border: 0; box-shadow: none; align-content: start; }
   .login-box { padding: 24px 20px; }

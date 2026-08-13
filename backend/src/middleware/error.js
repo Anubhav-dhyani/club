@@ -5,7 +5,7 @@ export function notFound(req, _res, next) {
 }
 
 export function errorHandler(error, _req, res, _next) {
-  const status = error.status || 500;
+  const status = error.status || (error.name === 'MulterError' ? 400 : 500);
   res.status(status).json({
     message: error.message || 'Server error',
     details: process.env.NODE_ENV === 'production' ? undefined : error.stack
